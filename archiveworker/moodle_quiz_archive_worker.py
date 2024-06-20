@@ -21,13 +21,13 @@ import uuid
 from http import HTTPStatus
 from collections import deque
 
-import requests
 import waitress
 from flask import Flask, make_response, request, jsonify
 
 from config import Config
+from .moodle_api import MoodleAPI
 from .quiz_archive_job import QuizArchiveJob
-from .custom_types import WorkerStatus, JobArchiveRequest, JobStatus
+from .custom_types import WorkerStatus, JobArchiveRequest, JobStatus, WorkerThreadInterrupter
 
 app = Flask(__name__)
 job_queue = queue.Queue(maxsize=Config.QUEUE_SIZE)
@@ -58,6 +58,10 @@ def queue_processing_loop():
     while getattr(threading.current_thread(), "do_run", True):
         # Start job execution
         job = job_queue.get()
+        if isinstance(job, WorkerThreadInterrupter):
+            app.logger.info("Received interrupt signal. Terminating queue worker thread")
+            return
+
         t = InterruptableThread(target=job.execute)
         t.start()
         t.join(Config.REQUEST_TIMEOUT_SEC)
@@ -74,34 +78,6 @@ def queue_processing_loop():
 
 def error_response(error_msg: str, status_code):
     return make_response(jsonify({'error': error_msg}), status_code)
-
-
-def probe_moodle_webservice_api(moodlw_ws_url: str, wstoken: str) -> bool:
-    """
-    Probes the Moodle webservice API for availability, hereby assuring that the
-    given wstoken works
-
-    :param moodlw_ws_url: Base-URL of the Moodle webservice to probe
-    :param wstoken: Webservice token to use for authentication
-    :return: bool true on success
-    """
-    try:
-        r = requests.get(url=moodlw_ws_url, params={
-            'wstoken': wstoken,
-            'moodlewsrestformat': 'json',
-            'wsfunction': Config.MOODLE_WSFUNCTION_ARCHIVE
-        })
-
-        data = r.json()
-    except Exception as e:
-        raise ConnectionError(f'probe_moodle_webservice_api failed {str(e)}')
-
-    if data['errorcode'] == 'invalidparameter':
-        # Moodle returns error 'invalidparameter' if the webservice is invoked
-        # with a working wstoken but without valid parameters for the wsfunction
-        return True
-    else:
-        return False
 
 
 @app.get('/')
@@ -160,7 +136,8 @@ def handle_archive_request():
             return error_response('Maximum number of queued jobs exceeded.', HTTPStatus.TOO_MANY_REQUESTS)
 
         # Probe moodle API (wstoken validity)
-        if not probe_moodle_webservice_api(job_request.moodle_ws_url, job_request.wstoken):
+        moodle_api = MoodleAPI(job_request.moodle_ws_url, job_request.moodle_upload_url, job_request.wstoken)
+        if not moodle_api.check_connection():
             return error_response(f'Could not establish a connection to Moodle webservice API at "{job_request.moodle_ws_url}" using the provided wstoken.', HTTPStatus.BAD_REQUEST)
 
         # Enqueue request
@@ -193,15 +170,22 @@ def handle_archive_request():
     return jsonify({'jobid': job.get_id(), 'status': job.get_status()}), HTTPStatus.OK
 
 
-def run():
+def start_processing_thread() -> None:
+    """
+    Starts the queue processing thread.
+    :return: None
+    """
+    queue_processing_thread = InterruptableThread(target=queue_processing_loop, daemon=True, name='queue_processing_thread')
+    queue_processing_thread.start()
+
+
+def run() -> None:
     """
     Runs the application
-    :return:
+    :return: None
     """
     logging.basicConfig(encoding='utf-8', format='[%(asctime)s] | %(levelname)-8s | %(name)s | %(message)s', level=Config.LOG_LEVEL)
     app.logger.info(f'Running {Config.APP_NAME} version {Config.VERSION} on log level {logging.getLevelName(Config.LOG_LEVEL)}')
 
-    queue_processing_thread = InterruptableThread(target=queue_processing_loop, daemon=True, name='queue_processing_thread')
-    queue_processing_thread.start()
-
+    start_processing_thread()
     waitress.serve(app, host=Config.SERVER_HOST, port=Config.SERVER_PORT)

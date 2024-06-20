@@ -1,5 +1,21 @@
 # Changelog
 
+## Version 1.3.10 (2024-06-20)
+
+- Optimize Docker image: Explicitly set run user group and perform additional apt cleanup
+- Update Python dependencies
+  - Fix CVE-2024-37891 in `urllib3` package
+
+
+## Version 1.3.9 (2024-06-05)
+
+- Create unit tests for archive creation, attempt rendering, backup storage, basic API logic, and more
+- Separate Moodle API logic from `QuizArchiveJob` class
+- Automatic execution of all unit tests on new commits and pull requests using GitHub actions
+- Optimize Python dependencies. Remove development dependencies from default installation group.
+- Update Python dependencies
+
+
 ## Version 1.3.8 (2024-05-29)
 
 - Switch artifact archive format from `PAX_FORMAT` to `USTAR_FORMAT` to prevent

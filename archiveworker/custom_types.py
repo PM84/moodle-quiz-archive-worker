@@ -19,6 +19,14 @@ from enum import StrEnum
 from typing import List
 
 
+class WorkerThreadInterrupter:
+    """
+    Job / Task to queue for interrupting a worker thread
+    """
+    def execute(self) -> None:
+        return
+
+
 class WorkerStatus(StrEnum):
     """
     Status values that the quiz archive worker can report
@@ -41,6 +49,15 @@ class JobStatus(StrEnum):
     TIMEOUT = 'TIMEOUT'
 
 
+class BackupStatus(StrEnum):
+    """
+    Status values a Moodle backup can have
+    """
+    PENDING = 'E_BACKUP_PENDING'
+    FAILED = 'E_BACKUP_FAILED'
+    SUCCESS = 'SUCCESS'
+
+
 class ReportSignal(StrEnum):
     """
     Signals that can be emitted by the report page JS
@@ -56,6 +73,8 @@ class JobArchiveRequest:
     """
 
     API_VERSION = 5
+
+    PAPER_FORMATS = ['A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'Letter', 'Legal', 'Tabloid', 'Ledger']
 
     def __init__(self,
                  api_version: int,
@@ -141,21 +160,21 @@ class JobArchiveRequest:
             if any(c in self.archive_filename for c in ["\0", "\\", "/", ":", "*", "?", "\"", "<", ">", "|", "."]):
                 return False
 
-        if self.tasks['archive_quiz_attempts'] is not None:
+        if self.tasks['archive_quiz_attempts']:
             if not isinstance(self.tasks['archive_quiz_attempts']['attemptids'], List):
                 return False
             if not isinstance(self.tasks['archive_quiz_attempts']['sections'], object):
                 return False
             if not isinstance(self.tasks['archive_quiz_attempts']['fetch_metadata'], bool):
                 return False
-            if not isinstance(self.tasks['archive_quiz_attempts']['paper_format'], str) or self.tasks['archive_quiz_attempts']['paper_format'] not in ['A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'Letter', 'Legal', 'Tabloid', 'Ledger']:
+            if not isinstance(self.tasks['archive_quiz_attempts']['paper_format'], str) or self.tasks['archive_quiz_attempts']['paper_format'] not in self.PAPER_FORMATS:
                 return False
             if not isinstance(self.tasks['archive_quiz_attempts']['keep_html_files'], bool):
                 return False
             if not isinstance(self.tasks['archive_quiz_attempts']['filename_pattern'], str) or self.tasks['archive_quiz_attempts']['filename_pattern'] is None:
                 return False
 
-        if self.tasks['archive_moodle_backups'] is not None:
+        if self.tasks['archive_moodle_backups']:
             if not isinstance(self.tasks['archive_moodle_backups'], List):
                 return False
             for backup in self.tasks['archive_moodle_backups']:

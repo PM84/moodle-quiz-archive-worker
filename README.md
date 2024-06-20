@@ -150,6 +150,43 @@ using the following environment variables:
 - `QUIZ_ARCHIVER_WAIT_FOR_NAVIGATION_TIMEOUT_SEC`: Number of seconds to wait for the report page to load before aborting the job (default=`30`)
 
 
+# Development
+
+Development dependencies are not installed by default. To install them, run:
+
+```shell
+poetry install --with dev
+```
+
+## Running Unit Tests
+
+Unit tests are handled by `pytest`. To run all test suites execute:
+
+```shell
+poetry run pytest
+```
+
+If you want to see the console output of the tests, as well as logger calls, you
+need to specify `-s` (for test output) and `--log-cli-level=DEBUG` (for app
+logging). Example:
+
+```shell
+poetry run pytest -s --log-cli-level=DEBUG
+```
+
+## Running Coverage Checks
+
+Code coverage is evaluated using the `coverage` Python package. To run coverage
+checks run the following commands:
+
+```shell
+poetry run coverage run -m pytest
+poetry run coverage html
+```
+
+The coverage report is then available in the `htmlcov` directory.
+
+
 ## License
 
 2024 Niels Gandraß <niels@gandrass.de>
