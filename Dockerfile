@@ -1,5 +1,5 @@
-# Moodle Quiz Archive Worker
-# Copyright (C) 2024 Niels Gandraß <niels@gandrass.de>
+# Moodle Archiving Worker
+# Copyright (C) 2026 Niels Gandraß <niels@gandrass.de>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -14,19 +14,33 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-FROM python:3.12
+FROM python:3.13
 
-ENV USER_NAME archiveworker
-ENV USER_HOME /app
+ENV USER_NAME=archiveworker
+ENV USER_GROUP=archiveworker
+ENV USER_HOME=/app
 
 RUN set -e && \
     mkdir ${USER_HOME}
 WORKDIR ${USER_HOME}
 
-# Install chromium dependencies
+# Install fonts, ghostscript and chromium dependencies (Note: ttf-mscorefonts-installer is not allowed to be distribured here due to its license)
 RUN set -e && \
     apt-get update && \
-    apt-get install -y $(apt-cache depends chromium | grep Depends | grep --invert-match "Depends: <" | sed "s/.*Depends:\ //" | tr '\n' ' ') && \
+    apt-get install --no-install-recommends -y \
+        fonts-firacode \
+        fonts-liberation \
+        fonts-noto \
+        fonts-noto-mono \
+        fonts-noto-extra \
+        fonts-noto-cjk \
+        fonts-noto-cjk-extra \
+        fonts-noto-color-emoji \
+        fonts-open-sans \
+        fonts-roboto \
+        ghostscript \
+        $(apt-cache depends chromium | grep Depends | grep --invert-match "Depends: <" | sed "s/.*Depends:\ //" | tr '\n' ' ') && \
+    apt-get -y clean && \
     rm -rf /var/lib/apt/lists/*
 
 # Install poetry and app requirements
@@ -39,14 +53,18 @@ RUN set -e && \
 
 # Create app user
 RUN set -e && \
-    groupadd --gid 1000 "${USER_NAME}" && \
+    groupadd --gid 1000 "${USER_GROUP}" && \
     useradd -g "${USER_NAME}" --uid 1000 --no-create-home --home-dir "${USER_HOME}" "${USER_NAME}" && \
     chown -R "${USER_NAME}" "${USER_HOME}"
-USER ${USER_NAME}
+USER ${USER_NAME}:${USER_GROUP}
 
 # Initialize playwright (download browsers). THIS MUST BE PERFORMED AS THE APP USER!
 RUN set -ex && \
-    playwright install chromium
+    playwright install --only-shell chromium
+
+# Define healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl --fail http://localhost:8080/status || exit 1
 
 # Run definition
 EXPOSE 8080

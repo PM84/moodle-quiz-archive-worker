@@ -1,24 +1,314 @@
 # Changelog
 
+## Version 5.0.0 (2026-08-11)
+
+- **⚠️ BREAKING ⚠️** Renamed project from "Moodle Quiz Archive Worker" to "Moodle Archiving Worker" to reflect generalized future support for Moodle activities beyond `mod_quiz`
+    - GitHub repository renamed `moodle-archiving-worker` (old URLs redirect automatically)
+    - Docker image renamed to `ngandrass/moodle-archiving-worker`
+        - Update your `docker-compose.yml` / `docker run` commands accordingly
+    - All `QUIZ_ARCHIVER_*` environment variables have been renamed to `MOODLE_ARCHIVER_*`
+        - Update your deployment configuration before upgrading, or the worker will silently fall back to default values
+    - The `app` field returned by `GET /status` now reports `moodle-archiving-worker` instead of `moodle-quiz-archive-worker`
+    - API routes and request/response payloads are otherwise unchanged
+- Add support for chunked uploads
+    - Archives larger than the maximum upload filesize of Moodle will be split into multiple chunks
+    - Uploaded chunks will be automatically reassembled by the Moodle plugin
+- Rework current archive creation process into a flexible and extensible archive packer structure
+- Add support for flat archive structures where all files are stored in a single directory instead of a nested directory structure
+- Make SHA256 checksum generation configurable via the companion plugin
+- Increase default job queue size to 32 (was 8)
+- Refactor the archive worker codebase to allow for easier extendability and maintainability
+- Allow passing of php xdebug session id via the environment variable `QUIZ_ARCHIVER_DEV_XDEBUG_SESSION` for development purposes
+- Update Python dependencies
+ 
+
+## Version 4.0.4 (2026-07-09)
+
+- Update Python dependencies
+    - Fix various CVEs in `pypdf` package
+
+
+## Version 4.0.3 (2026-05-22)
+
+- ci: Optimize Playwright installation in PyTest container
+- ci: Update Python base image used for PyTest to v3.13
+- ci: Create GitLab CI definition for unit test execution
+- Bump PyTest to v9
+- Update Python dependencies
+
+
+## Version 4.0.2 (2026-05-12)
+
+- Update Python dependencies
+    - Fix CVE-2026-44432 in `urllib3` package
+    - Fix CVE-2026-41314, CVE-2026-41312, CVE-2026-41313, CVE-2026-41168 in `pypdf` package
+    - Fix CVE-2025-71176 in `pytest` package
+
+
+## Version 4.0.1 (2026-04-14)
+
+- Update Python dependencies
+    - Fix CVE-2026-40192 in `pillow` package
+    - Fix CVE-2026-40260 in `pypdf` package
+    - Fix CVE-2025-71176 in `pytest` package
+
+
+## Version 4.0.0 (2026-04-01)
+
+- Add PDF/A-3b compliant PDF file export
+- Add parallel job execution capability
+- Add support for MathJax 4 (used by default by Moodle >= 5.2)
+- Fix the `status` field of the `GET /status` request: The status will no longer be `IDLE` while processing exactly one job.
+- Changed response of `GET /status` route
+    - Adding field `jobs_processing`: Array containing the IDs of all the jobs currently being processed
+    - Adding field `jobs_queued`: Array containing the IDs of all the jobs currently in the queue (in order)
+    - Adding field `jobs_max`: Number of maximal jobs that can be run in parallel
+    - Adding field `queue_max`: Number of maximal queue size
+- Automatically build `linux/amd64` and `linux/arm64` variants of the Docker image
+- Update GitHub actions workflow for Docker image build and release
+- Update Python dependencies
+
+
+## Version 3.3.9 (2026-02-05)
+
+- Move attempt data mock responder from page to browser context level to prevent problems with Moodle themes that make use of shadow roots and other wizardry
+- Force clearing of browser cookies between attempt renderings to prevent certain state issues
+- Update Python dependencies
+
+
+## Version 3.3.8 (2026-01-27)
+
+- Update Python dependencies
+    - Fix CVE-2026-22690, CVE-2026-22691, and CVE-2026-24688 in `pypdf` package
+    - Fix CVE-2026-21860 in `werkzeug` package
+
+
+## Version 3.3.7 (2026-01-08)
+
+- Update Python dependencies
+    - Fix CVE-2026-21441 in `urllib3` package
+
+
+## Version 3.3.6 (2025-12-10)
+
+- Fix handling of duplicate file names when using static naming patterns by prepending the unique attempt ID in case of duplicates
+- Update Python dependencies
+
+
+## Version 3.3.5 (2025-12-06)
+
+- Update Python dependencies
+    - Fix CVE-2025-66418 in `urllib3` package
+    - Fix CVE-2025-66471 in `urllib3` package
+
+
+## Version 3.3.4 (2025-12-02)
+
+- Update Python dependencies
+    - Fix CVE-2025-66221 in `werkzeug` package
+    - Fix CVE-2025-66019 in `pypdf` package
+
+
+## Version 3.3.3 (2025-10-28)
+
+- Update Python dependencies
+    - Fix CVE-2025-62708 in `pypdf` package
+    - Fix CVE-2025-62707 in `pypdf` package
+
+
+## Version 3.3.2 (2025-08-25)
+
+- Fix missing font files for asian characters and emoji in Docker image
+- Update Python dependencies
+
+
+## Version 3.3.1 (2025-08-09)
+
+- Fix GeoGebra applet readiness detection to work with most recent GeoGebra versions
+- Update Python dependencies
+
+
+## Version 3.3.0 (2025-07-31)
+
+- Allow compression algorithm to be configured via the environment variable `QUIZ_ARCHIVER_ZIP_COMPRESSION_ALGO`.
+  Allowed values are:
+    - `STORED` (no compression)
+    - `DEFLATED` (light compression, default)
+    - `BZIP2` (medium compression)
+    - `LZMA` (strong compression)
+- Set default compression algorithm to `DEFLATE` for better compatibility with Windows
+- Update Python dependencies
+
+
+## Version 3.2.1 (2025-07-02)
+
+- Update Python dependencies
+    - Fix CVE-2025-48379 in `pillow` package
+    - Fix CVE-2025-50182 in `urllib3` package
+    - Fix CVE-2025-50181 in `urllib3` package
+    - Fix CVE-2024-47081 in `requests` package
+
+
+## Version 3.2.0 (2025-06-22)
+
+- Create automated health check for the quiz archive worker service when using the Docker image
+- Update Python to v3.13 in Docker image
+- Reduce size of Docker image
+- Add API support for upcoming generic Moodle archiving plugin
+- Update Python dependencies
+    - Fix CVE-2024-47081 in `requests` package
+
+
+## Version 3.1.1 (2025-05-22)
+
+- Update Python dependencies
+    - Fix CVE-2025-47278 in `flask` package
+
+
+## Version 3.1.0 (2025-04-19)
+
+- Switch from `.tar.gz` to `.zip` archive format
+
+
+## Version 3.0.0 (2025-04-16)
+
+- Add support for Moodle 5.0 / MathJax 3.x
+- Add attempt folder name customization by variable path field in API
+- Pass job UUID to `generate_attempt_report` and `get_attempts_metadata` Moodle webservice functions
+- Update Python dependencies
+
+
+## Version 2.3.0 (2025-04-01)
+
+- Relax `Content-Length` HTTP header check on Moodle backup download task to fix failed backup downloads in specific scenarios
+- Add `QUIZ_ARCHIVER_SKIP_HTTPS_CERT_VALIDATION` environment variable to allow skipping of HTTPS cert validation if desired
+- Update Python dependencies
+    - Fix CVE-2025-27516 in `jinja2` package
+
+
+## Version 2.2.0 (2025-01-21)
+
+- Add support for HTTP and SOCKS proxy servers (#16 - Thanks to @PhMemmel)
+- Fix parsing of boolean / int values during config tree building from environment variables
+
+
+## Version 2.1.4 (2025-01-02)
+
+- Update Python dependencies
+    - Fix CVE-2024-56201 in `jinja2` package
+    - Fix CVE-2024-56326 in `jinja2` package
+
+
+## Version 2.1.3 (2024-12-10)
+
+- Fix issues with asian characters when using the provided Docker image
+
+
+## Version 2.1.2 (2024-12-04)
+
+- Update Python dependencies
+
+
+## Version 2.1.1 (2024-10-29)
+
+- Fix name of `QUIZ_ARCHIVER_PREVENT_REDIRECT_TO_LOGIN` envirnoment variable in documentation
+- Update Python dependencies
+    - Fix CVE-2024-49766 in `werkzeug` package
+    - Fix CVE-2024-49767 in `werkzeug` package
+
+
+## Version 2.1.0 (2024-10-10)
+
+- Add a demo mode to allow setting up a public quiz archive worker service for testing.
+    - In demo mode, a watermark will be added to all generated PDFs, only a
+      limited number of attempts will be exported per archive job, and only
+      placeholder Moodle backups are included.
+    - The demo mode is disabled by default and will only be used to provide a free
+      and publicly available quiz archive worker service to the community. This
+      allows testing the Moodle plugin without the need to set up a local quiz
+      archive worker service right away. Productive instances of the quiz archive
+      worker service will remain fully unaffected by this.
+- Improve documentation and add reference to official documentation website
+- Introduce explicit timeouts for Moodle API request
+- Create unit tests for demo mode
+- Update Python dependencies
+
+
+## Version 2.0.0 (2024-08-21)
+
+- Switch to semantic versioning (see README.md, Section: "Versioning and Compatibility")
+- Add custom readiness probe for GeoGebra applets
+- Improve page export readiness detection and add support for multiple readiness probes
+- Ignore `.github` and `test` directories in Docker image build
+- Dump full app configuration to log on startup if `LOG_LEVEL` is set to `DEBUG`
+
+**Note:** Use of [quiz_archiver](https://github.com/ngandrass/moodle-quiz_archiver) `>= v2.0.0` is required.
+
+
+## Version 1.6.0 (2024-07-29)
+
+- Implement support for passing additional status values (statusextras) to Moodle
+- Periodically report progress of running jobs back to Moodle
+- Creation of new job status values:
+    - `WAITING_FOR_BACKUP`: All attempt reports are generated and the archive worker service
+      is waiting for the Moodle backup to be ready.
+    - `FINALIZING`: The archive worker service is finalizing the archive creation process (checksums, compression, ...).
+- Update Python dependencies
+
+
+## Version 1.5.0 (2024-07-18)
+
+- Optionally scale down large images within quiz reports to preserve space and keep PDF files compact
+- Optionally compress images within quiz reports to preserve space and keep PDF files compact
+- Rename `REPORT_PREVENT_REDIRECT_TO_LOGIN` to `PREVENT_REDIRECT_TO_LOGIN` to reflect the naming of the environment variable
+- Reduce noise from 3rd party library loggers on log level `DEBUG`
+
+
+## Version 1.4.0 (2024-07-08)
+
+- Prevent belated redirects away from attempt report page (e.g. to login page)
+- Increase defaults for job and attempt export timeouts
+- Improve pytest unit tests
+- Improve verbosity of error messages on job timeout due to missing "ready signals"
+- Update Python dependencies
+    - Address CVE-2024-39689 in `certifi` package
+
+
+## Version 1.3.10 (2024-06-20)
+
+- Optimize Docker image: Explicitly set run user group and perform additional apt cleanup
+- Update Python dependencies
+    - Fix CVE-2024-37891 in `urllib3` package
+
+
+## Version 1.3.9 (2024-06-05)
+
+- Create unit tests for archive creation, attempt rendering, backup storage, basic API logic, and more
+- Separate Moodle API logic from `QuizArchiveJob` class
+- Automatic execution of all unit tests on new commits and pull requests using GitHub actions
+- Optimize Python dependencies. Remove development dependencies from default installation group.
+- Update Python dependencies
+
+
 ## Version 1.3.8 (2024-05-29)
 
 - Switch artifact archive format from `PAX_FORMAT` to `USTAR_FORMAT` to prevent
   problems when extracted using the ancient tar implementation within Moodle
 - Update Docker container Python base to 3.12
 - Update Python dependencies
-  - Fix CVE-2024-35195 in `requests` package
+    - Fix CVE-2024-35195 in `requests` package
 
 
 ## Version 1.3.7 (2024-05-07)
 
 - Update Python dependencies
-  - Fix CVE-2024-34069 in `werkzeug` package, a dependency of the `flask` package
-   
+    - Fix CVE-2024-34069 in `werkzeug` package, a dependency of the `flask` package
+
 
 ## Version 1.3.6 (2024-04-23)
 
 - Update Python dependencies
-  - Fix CVE-2024-3651 in `idna` package, a dependency of the `requests` package
+    - Fix CVE-2024-3651 in `idna` package, a dependency of the `requests` package
 
 
 ## Version 1.3.5 (2024-04-09)
@@ -93,7 +383,7 @@
 - Improve performance: Reuse Playwright `BrowserContext` between attempt renderings.
 - Fix environment variable override of config. Cast environmental config overrides to the correct types
 - Add debug output to request JSON validation
- 
+
 
 ## Version 1.1.0 (2023-08-22)
 

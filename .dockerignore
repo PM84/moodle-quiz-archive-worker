@@ -1,6 +1,9 @@
 .git/
+.github/
 .gitignore
 .venv/
 .idea/
+docs/
 out/
+tests/
 *.iml

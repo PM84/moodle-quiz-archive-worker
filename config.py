@@ -1,5 +1,5 @@
-# Moodle Quiz Archive Worker
-# Copyright (C) 2024 Niels Gandraß <niels@gandrass.de>
+# Moodle Archiving Worker
+# Copyright (C) 2026 Niels Gandraß <niels@gandrass.de>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -16,75 +16,167 @@
 
 import logging
 import os
+import zipfile
+
+
+def parse_env_variable(name, default=None, valtype=None) -> None | bool | int | str:
+    """
+    Parses an environment variable and returns it cast to the desired type.
+    Undefined variables will return the default value.
+
+    :param name: Name of the environment variable to evaluate
+    :param default: Default to return if the variable is not set
+    :param valtype: Force return type. Pass None for automatic type detection
+    :return: Parsed value
+    """
+    # Detect unset variables
+    value = os.getenv(name, default=None)
+    if value is None:
+        return default
+
+    # Forced type casts
+    if valtype is bool:
+        return value.lower() in ['true', '1']
+    if valtype is int:
+        return int(value)
+    if valtype is str:
+        return value
+
+    # Automatic type detection
+    if value.lower() in ['true', 'false']:
+        return value.lower() == 'true'
+    if value.lstrip('-+').isdigit():
+        return int(value)
+
+    # String fallback
+    return value
 
 
 class Config:
 
-    APP_NAME = "moodle-quiz-archive-worker"
-    """Name of this app."""
+    APP_NAME = "moodle-archiving-worker"
+    """Name of this app"""
 
-    VERSION = "1.3.8"
-    """Version of this app."""
+    VERSION = "5.0.0"
+    """Version of this app"""
 
-    LOG_LEVEL = logging.getLevelNamesMapping()[os.getenv('QUIZ_ARCHIVER_LOG_LEVEL', default='INFO')]
+    LOG_LEVEL = logging.getLevelNamesMapping()[parse_env_variable('MOODLE_ARCHIVER_LOG_LEVEL', default='INFO', valtype=str)]
     """Python Logger logging level"""
 
-    SERVER_HOST = os.getenv('QUIZ_ARCHIVER_SERVER_HOST', default='0.0.0.0')
+    DEMO_MODE = parse_env_variable('MOODLE_ARCHIVER_DEMO_MODE', default=False, valtype=bool)
+    """Whether the app is running in demo mode. In demo mode, a watermark will be added to all generated PDFs, only a limited number of attempts will be exported per archive job, and only placeholder Moodle backups are included."""
+
+    UNIT_TESTS_RUNNING = False
+    """Whether unit tests are currently running. This should always be kept at `False` and is only changed by pytest."""
+
+    SERVER_HOST = parse_env_variable('MOODLE_ARCHIVER_SERVER_HOST', default='0.0.0.0', valtype=str)
     """Host for Flask to bind to"""
 
-    SERVER_PORT = os.getenv('QUIZ_ARCHIVER_SERVER_PORT', default='8080')
+    SERVER_PORT = parse_env_variable('MOODLE_ARCHIVER_SERVER_PORT', default='8080', valtype=int)
     """Port for Flask to listen on"""
 
-    QUEUE_SIZE = int(os.getenv('QUIZ_ARCHIVER_QUEUE_SIZE', default=8))
+    SKIP_HTTPS_CERT_VALIDATION = parse_env_variable('MOODLE_ARCHIVER_SKIP_HTTPS_CERT_VALIDATION', default=False, valtype=bool)
+    """Whether to skip validation of TLS / SSL certs for all HTTPS connections. WARNING: If set to true, invalid certificates are accepted without error."""
+
+    PROXY_SERVER_URL = parse_env_variable('MOODLE_ARCHIVER_PROXY_SERVER_URL', default=None, valtype=str)
+    """URL of the proxy server to use for all playwright requests. HTTP and SOCKS proxies are supported. If not set, auto-detection will be performed. If set to false, no proxy will be used."""
+
+    PROXY_USERNAME = None
+    """Optional username to authenticate at the proxy server. Will be populated based on PROXY_SERVER_URL."""
+
+    PROXY_PASSWORD = None
+    """Optional password to authenticate at the proxy server. Will be populated based on PROXY_SERVER_URL."""
+
+    PROXY_BYPASS_DOMAINS = parse_env_variable('MOODLE_ARCHIVER_PROXY_BYPASS_DOMAINS', default=None, valtype=str)
+    """Comma-separated list of domains that should always be accessed directly, bypassing the proxy"""
+
+    QUEUE_SIZE = parse_env_variable('MOODLE_ARCHIVER_QUEUE_SIZE', default=32, valtype=int)
     """Maximum number of requests that are queued before returning an error."""
 
-    HISTORY_SIZE = int(os.getenv('QUIZ_ARCHIVER_HISTORY_SIZE', default=128))
+    PARALLEL_JOBS = parse_env_variable('MOODLE_ARCHIVER_PARALLEL_JOBS', default=4, valtype=int)
+    """Number of worker threads to process archive jobs in parallel. Value has to be greater than 0"""
+
+    HISTORY_SIZE = parse_env_variable('MOODLE_ARCHIVER_HISTORY_SIZE', default=128, valtype=int)
     """Maximum number of jobs to keep in the history before forgetting about them."""
 
-    REQUEST_TIMEOUT_SEC = int(os.getenv('QUIZ_ARCHIVER_REQUEST_TIMEOUT_SEC', default=(30 * 60)))
+    ZIP_COMPRESSION_ALGO = getattr(zipfile, 'ZIP_' + parse_env_variable('MOODLE_ARCHIVER_ZIP_COMPRESSION_ALGO', default='DEFLATED', valtype=str))
+    """Compression algorithm to use for ZIP archives. Use `DEFLATED` for compatibility with Windows and MacOS. Possible values are `STORED` (no compression), `DEFLATED` (light compression, default), `BZIP2` (medium compression), and `LZMA` (strong compression)."""
+
+    STATUS_REPORTING_INTERVAL_SEC = parse_env_variable('MOODLE_ARCHIVER_STATUS_REPORTING_INTERVAL_SEC', default=15, valtype=int)
+    """Number of seconds to wait between job progress updates"""
+
+    REQUEST_TIMEOUT_SEC = parse_env_variable('MOODLE_ARCHIVER_REQUEST_TIMEOUT_SEC', default=(60 * 60), valtype=int)
     """Number of seconds before execution of a single request is aborted."""
 
-    BACKUP_STATUS_RETRY_SEC = int(os.getenv('QUIZ_ARCHIVER_BACKUP_STATUS_RETRY_SEC', default=30))
+    BACKUP_STATUS_RETRY_SEC = parse_env_variable('MOODLE_ARCHIVER_BACKUP_STATUS_RETRY_SEC', default=30, valtype=int)
     """Number of seconds between status checks of pending backups via the Moodle API"""
 
-    DOWNLOAD_MAX_FILESIZE_BYTES = int(os.getenv('QUIZ_ARCHIVER_DOWNLOAD_MAX_FILESIZE_BYTES', default=(1024 * 10e6)))
+    DOWNLOAD_MAX_FILESIZE_BYTES = parse_env_variable('MOODLE_ARCHIVER_DOWNLOAD_MAX_FILESIZE_BYTES', default=int(1024 * 10e6), valtype=int)
     """Maximum number of bytes a generic Moodle file is allowed to have for downloading"""
 
-    BACKUP_DOWNLOAD_MAX_FILESIZE_BYTES = int(os.getenv('QUIZ_ARCHIVER_BACKUP_DOWNLOAD_MAX_FILESIZE_BYTES', default=(512 * 10e6)))
+    BACKUP_DOWNLOAD_MAX_FILESIZE_BYTES = parse_env_variable('MOODLE_ARCHIVER_BACKUP_DOWNLOAD_MAX_FILESIZE_BYTES', default=int(512 * 10e6), valtype=int)
     """Maximum number of bytes a backup is allowed to have for downloading"""
 
-    QUESTION_ATTACHMENT_DOWNLOAD_MAX_FILESIZE_BYTES = int(os.getenv('QUIZ_ARCHIVER_QUESTION_ATTACHMENT_DOWNLOAD_MAX_FILESIZE_BYTES', default=(128 * 10e6)))
+    QUESTION_ATTACHMENT_DOWNLOAD_MAX_FILESIZE_BYTES = parse_env_variable('MOODLE_ARCHIVER_QUESTION_ATTACHMENT_DOWNLOAD_MAX_FILESIZE_BYTES', default=int(128 * 10e6), valtype=int)
     """Maximum number of bytes a question attachment is allowed to have for downloading"""
 
-    REPORT_BASE_VIEWPORT_WIDTH = int(os.getenv('QUIZ_ARCHIVER_REPORT_BASE_VIEWPORT_WIDTH', default=1240))
+    REPORT_BASE_VIEWPORT_WIDTH = parse_env_variable('MOODLE_ARCHIVER_REPORT_BASE_VIEWPORT_WIDTH', default=1240, valtype=int)
     """Width of the viewport created for rendering quiz attempts in pixel"""
 
-    REPORT_PAGE_MARGIN = os.getenv('QUIZ_ARCHIVER_REPORT_PAGE_MARGIN', default='5mm')
+    REPORT_PAGE_MARGIN = parse_env_variable('MOODLE_ARCHIVER_REPORT_PAGE_MARGIN', default='5mm', valtype=str)
     """Margin (top, bottom, left, right) of the report PDF pages including unit (mm, cm, in, px)"""
 
-    REPORT_WAIT_FOR_READY_SIGNAL = bool(os.getenv('QUIZ_ARCHIVER_WAIT_FOR_READY_SIGNAL', default=True))
+    REPORT_WAIT_FOR_READY_SIGNAL = parse_env_variable('MOODLE_ARCHIVER_WAIT_FOR_READY_SIGNAL', default=True, valtype=bool)
     """Whether to wait for the ready signal from the report page JS before generating the export"""
 
-    REPORT_WAIT_FOR_READY_SIGNAL_TIMEOUT_SEC = int(os.getenv('QUIZ_ARCHIVER_WAIT_FOR_READY_SIGNAL_TIMEOUT_SEC', default=15))
+    REPORT_WAIT_FOR_READY_SIGNAL_TIMEOUT_SEC = parse_env_variable('MOODLE_ARCHIVER_WAIT_FOR_READY_SIGNAL_TIMEOUT_SEC', default=30, valtype=int)
     """Number of seconds to wait for the ready signal from the report page JS before considering the export as failed"""
 
-    REPORT_CONTINUE_AFTER_READY_SIGNAL_TIMEOUT = bool(os.getenv('QUIZ_ARCHIVER_CONTINUE_AFTER_READY_SIGNAL_TIMEOUT', default=False))
+    REPORT_CONTINUE_AFTER_READY_SIGNAL_TIMEOUT = parse_env_variable('MOODLE_ARCHIVER_CONTINUE_AFTER_READY_SIGNAL_TIMEOUT', default=False, valtype=bool)
     """Whether to continue with the export if the ready signal was not received in time"""
 
-    REPORT_WAIT_FOR_NAVIGATION_TIMEOUT_SEC = int(os.getenv('QUIZ_ARCHIVER_WAIT_FOR_NAVIGATION_TIMEOUT_SEC', default=30))
+    REPORT_WAIT_FOR_NAVIGATION_TIMEOUT_SEC = parse_env_variable('MOODLE_ARCHIVER_WAIT_FOR_NAVIGATION_TIMEOUT_SEC', default=30, valtype=int)
     """Number of seconds to wait for the report page to load before aborting the job"""
 
-    MOODLE_WSFUNCTION_ARCHIVE = 'quiz_archiver_generate_attempt_report'
-    """Name of the Moodle webservice function to call to trigger an quiz attempt export"""
+    PREVENT_REDIRECT_TO_LOGIN = parse_env_variable('MOODLE_ARCHIVER_PREVENT_REDIRECT_TO_LOGIN', default=True, valtype=bool)
+    """Whether to supress all redirects to Moodle login pages (`/login/*.php`) after page load. This can occur, if dynamic ajax requests due to with permission errors."""
 
-    MOODLE_WSFUNCTION_PROESS_UPLOAD = 'quiz_archiver_process_uploaded_artifact'
-    """Name of the Moodle webservice function to call after an artifact was uploaded successfully"""
+    PDFA_CONVERSION = parse_env_variable('MOODLE_ARCHIVER_PDFA_CONVERSION', default=True, valtype=bool)
+    """Whether to convert exported attempt PDF files into a PDF/A compliant format"""
 
-    MOODLE_WSFUNCTION_GET_BACKUP = 'quiz_archiver_get_backup_status'
-    """Name of the Moodle webservice function to call to retrieve information about a backup"""
+    PDFA_CONVERSION_TIMEOUT_SEC = parse_env_variable('MOODLE_ARCHIVER_PDFA_CONVERSION_TIMEOUT_SEC', default=30, valtype=int)
+    """Number of seconds to wait before conversion process is aborted"""
 
-    MOODLE_WSFUNCTION_UPDATE_JOB_STATUS = 'quiz_archiver_update_job_status'
-    """Name of the Moodle webservice function to call to update the status of a job"""
+    PDFA_CONVERSION_GHOSTSCRIPT_BINARY_PATH = parse_env_variable('MOODLE_ARCHIVER_PDFA_CONVERSION_GHOSTSCRIPT_BINARY_PATH', default=None, valtype=str)
+    """Path to the ghostscript binary that should be used for PDF/A conversion. If left unset, this will be detected automatically."""
 
-    MOODLE_WSFUNCTION_GET_ATTEMPTS_METADATA = 'quiz_archiver_get_attempts_metadata'
-    """Name of the Moodle webservice function to call to retrieve metadata about quiz attempts"""
+    DEV_XDEBUG_SESSION = parse_env_variable('MOODLE_ARCHIVER_DEV_XDEBUG_SESSION', default=None, valtype=str)
+    """For development only: PHP XDEBUG session id to trigger debugging of moodle webservice API calls."""
+
+    @staticmethod
+    def tostring() -> str:
+        """
+        Dumps the full configuration to a string.
+
+        :return: Configuration as string
+        """
+        ret = "Configuration:"
+        for key, value in vars(Config).items():
+            # Translate int representation of ZIP compression algorithms to human-readable strings
+            if key == 'ZIP_COMPRESSION_ALGO':
+                if value == zipfile.ZIP_STORED:
+                    value = 'STORED'
+                elif value == zipfile.ZIP_DEFLATED:
+                    value = 'DEFLATED'
+                elif value == zipfile.ZIP_BZIP2:
+                    value = 'BZIP2'
+                elif value == zipfile.ZIP_LZMA:
+                    value = 'LZMA'
+                ret += f"\n  {key} => {value}"
+                continue
+
+            # Anything that is not a special case
+            if not (key.startswith('_') or key == 'tostring'):
+                ret += f"\n  {key} => {value}"
+
+        return ret
